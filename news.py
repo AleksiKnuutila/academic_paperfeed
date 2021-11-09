@@ -5,6 +5,9 @@ import datetime
 import re
 import random
 from io import BytesIO
+from feedgen.feed import FeedGenerator
+from benedict import benedict
+import os
 
 # color theme for 'dark' and 'light' terminals
 THEME = 'dark'
@@ -96,7 +99,8 @@ def parseItem(itemstr, rss_v):
                 dnum = datetime.datetime.strptime(date[0:-1],"%Y-%m-%dT%H:%M%S")
 
     itemList.append((dnumsort - datetime.datetime(1900,1,1)).total_seconds())
-    itemList.append(dnum.strftime("%b-%d-%Y %H:%M:%S GMT"))
+    #itemList.append(dnum.strftime("%b-%d-%Y %H:%M:%S GMT"))
+    itemList.append(dnum)
 
     try:
         try:
@@ -176,6 +180,12 @@ def carveRSS(bodytxt, pattern_0, pattern_f, rss_v):
 
 def main():
 
+    LINK_LIST_FILE='links_seen.json'
+    if os.path.exists(LINK_LIST_FILE):
+        links_seen=benedict.from_json(LINK_LIST_FILE, keypath_separator=None)
+    else:
+        links_seen=benedict(keypath_separator=None)
+
 
     RSSall = []
     ruf = open(RSS_URL_FILE,'r')
@@ -234,19 +244,27 @@ def main():
     for i in range(len(Feed)):
         Feed[i][0] = Feed[i][0] + random.gauss(0,rand_range_secs)
     Feed = sorted(Feed,key=lambda l:l[0], reverse=False)
-    prev = ""
-    total = len(Feed)
-    print("\033c")
-    for i in range(total):
-        if (i > (total - N_SHOW_LINES - 1) ):
-            thing = Feed[i]
-            if (thing[2] == prev):
-                pass
-            else:
-                try:
-                    printHeadline(thing[1:])
-                except:
-                    pass
-            prev = thing[2]
+
+    fg = FeedGenerator()
+    fg.id('papers')
+    fg.title('Recent papers')
+    fg.subtitle('subtitle')
+    fg.language('lang')
+    fg.author(dict(name='name', email='email'))
+    fg.link(href='https://google.com', rel='alternate')
+
+    for entry in Feed:
+        if entry[4] in links_seen.keys():
+            continue
+        fe = fg.add_entry()
+        fe.pubDate(entry[1].strftime("%b-%d-%Y %H:%M:%S GMT"))
+        fe.title(entry[2])
+        fe.description(entry[3])
+        fe.content(entry[3])
+        fe.link(href=entry[4], rel='alternate')
+        links_seen[entry[4]] = entry[1].strftime("%b-%d-%Y")
+    fg.rss_file('papers.xml', pretty=True)
+
+    links_seen.to_json(filepath=os.getcwd() + '/' + LINK_LIST_FILE)
 
 main()
